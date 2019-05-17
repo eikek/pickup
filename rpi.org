@@ -1,0 +1,103 @@
+#+title: Install on Raspberry Pi
+
+- if using RPi, generating the keys takes forever and may run into
+  http-request timeouts; better do the setup on another machine and
+  then copy the "pickup" directory.
+- or start it with: ~pickup-admin [config-file] setup <password>~
+  - this will not start the web server but just run the setup
+  - this circumvents the timeout problem, you'll still need to wait
+- use a debian based distro, this guide used dietpi
+
+#+begin_src shell :exports both
+apt-get install --yes duplicity python-paramiko python-netmiko python-scp\
+   gnupg openjdk-8-jre-headless iptables iptables-persistent dnsutils parted\
+   xfsprogs smartmontools emacs-nox
+
+cat > firewall.sh <<-EOF
+#!/usr/bin/env bash
+
+# allow loopback traffic
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT ! -i lo -d 127.0.0.0/8 -j REJECT
+
+# allow established connections
+iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+# allow SSH
+iptables -A INPUT -p tcp -m state --state NEW --dport 22 -j ACCEPT
+
+# allow pickup
+iptables -A INPUT -p tcp -m state --state NEW --dport 12021 -j ACCEPT
+iptables -A INPUT -p tcp -m state --state NEW --dport 24042 -j ACCEPT
+iptables -A INPUT -p tcp -m state --state NEW --dport 9101 -j ACCEPT
+
+# allow samba
+iptables -A INPUT -p tcp -m state --state NEW --dport 139 -j ACCEPT
+iptables -A INPUT -p tcp -m state --state NEW --dport 445 -j ACCEPT
+
+# log rejected
+iptables -A INPUT -m limit --limit 5/min -j LOG --log-prefix "iptables denied: " --log-level 7
+
+# reject rest
+iptables -A INPUT -j REJECT
+iptables -A FORWARD -j REJECT
+EOF
+chmod 755 firewall.sh
+
+./firewall.sh
+netfilter-persistent save
+
+#+end_src
+
+Set up the USB disk used to store the backups. If the disk is
+=/dev/sda=:
+
+#+begin_src shell :exports both
+parted /dev/sda -- mkpart primary 1 100%
+mkfs.xfs -L pickup -f /dev/sda1
+echo "/dev/disk/by-label/pickup   /mnt   xfs   auto,nofail,sync,rw  0  0" >> /etc/fstab
+mount /mnt
+#+end_src
+
+
+Then install pickup and configure it by editing
+=/etc/pickup-admin/pickup.conf=.
+
+#+begin_src shell :exports both
+# Get pickup
+# wget ...
+dpkg -i pickup-admin*.deb
+
+mkdir -p /mnt/pickup
+chown -R pickup-admin:pickup-admin /mnt/pickup
+# nano /etc/pickup-admin/pickup.conf
+#+end_src
+
+
+I also install samba to access the backup directory. The path
+=/mnt/pickup= is set as pickup working directory in
+=/etc/pickup-admin/pickup.conf=.
+
+#+begin_src shell :exports both
+cat >> /etc/samba/smb.conf <<-EOF
+
+[pickup]
+        path = /mnt/pickup/ssh-personal
+        guest ok = no
+        read only = no
+        force create mode = 0644
+        force directory mode = 2755
+        force user = pickup-admin
+        force group = pickup-admin
+        valid users = @samba
+        max connections = 8
+EOF
+
+export NEW_USER=peter
+addgroup --system samba
+adduser --ingroup samba $NEW_USER
+smbpasswd -a $NEW_USER
+systemctl restart smbd
+#+end_src
+
+Setting up mail, see [[http://www.madirish.net/565][here]].

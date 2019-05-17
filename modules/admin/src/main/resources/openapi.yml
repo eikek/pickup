@@ -1,0 +1,529 @@
+openapi: 3.0.0
+
+info:
+  title: Pickup
+  version: 0.1.0
+
+servers:
+  - url: /api/v1
+    description: Current host
+
+paths:
+  /setup:
+    get:
+      summary: "Check if already setup"
+      description: |
+        This route can be used to check whether a setup exists.
+      responses:
+        "200":
+          description: OK
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/SetupState"
+
+    post:
+      summary: Initial setup
+      description: |
+        This allows to initialize pickup. This is required exactly
+        once. Subsequent setup attempts simply return the values from
+        the first run.
+
+        There is a SSH keypair generated used to connect to peers. It
+        consists of a public and a private key. You can give the
+        **public** key to all peers, you want to store your backup
+        data. And, vice-versa, you'll register public-keys from your
+        peers that are allowed to push their backup data to your host.
+
+        The password is used to encrypt the backup data before it is
+        transfered to the peers.
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              $ref: "#/components/schemas/SetupData"
+      responses:
+        "200":
+          description: OK
+
+  /peers/in:
+    get:
+      summary: "Get all incoming peers"
+      description: |
+        Get a list of currently configured incoming peers.
+      responses:
+        "200":
+          description: OK
+          content:
+            "application/json":
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InPeer"
+    post:
+      summary: "Add or update an incoming peer"
+      description: |
+        Upload a new peer or update one if it already exists. The
+        properties `lastConnection` and `connections` are ignored.
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              $ref: "#/components/schemas/InPeer"
+      responses:
+        "200":
+          description: OK
+
+  /peers/in/{id}:
+    get:
+      summary: "Get one incoming peer"
+      description: |
+        Return an incoming peer with a specific id.
+      parameters:
+        - $ref: "#/components/parameters/peerId"
+      responses:
+        "200":
+          description: Ok
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/InPeer"
+    delete:
+      summary: "Delete this peer"
+      description: |
+        Removes this peer from the database.
+      parameters:
+        - $ref: "#/components/parameters/peerId"
+      responses:
+        "200":
+          description: Ok
+
+  /peers/out:
+    get:
+      summary: "Get all outgoing peers"
+      description: |
+        Get a list of currently configured outgoing peers.
+      responses:
+        "200":
+          description: OK
+          content:
+            "application/json":
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OutPeer"
+    post:
+      summary: "Add or update an outgoing peer"
+      description: |
+        Upload a new peer or update one if it already exists. The
+        properties `lastConnection` and `connections` are ignored.
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              $ref: "#/components/schemas/OutPeer"
+      responses:
+        "200":
+          description: OK
+
+  /peers/out/{id}:
+    get:
+      summary: "Get one outgoing peer"
+      description: |
+        Return an outgoing peer with a specific id.
+      parameters:
+        - $ref: "#/components/parameters/peerId"
+      responses:
+        "200":
+          description: Ok
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/OutPeer"
+    delete:
+      summary: "Delete this peer"
+      description: |
+        Removes this peer from the database.
+      parameters:
+        - $ref: "#/components/parameters/peerId"
+      responses:
+        "200":
+          description: Ok
+
+  /peers/out/{id}/runBackup:
+    post:
+      summary: "Run a backup to this peer"
+      description: |
+        Starts a backup run uploading to this peer. It is started
+        unconditionally, the enabled property is not taken into
+        account.
+      parameters:
+        - $ref: "#/components/parameters/peerId"
+      responses:
+        "200":
+          description: Ok
+
+  /peers/out/{id}/lastrun:
+    get:
+      summary: "Information about last run"
+      description: |
+        Returns properties to the last run of this backup.
+      parameters:
+        - $ref: "#/components/parameters/peerId"
+      responses:
+        "200":
+          description: OK
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/Output"
+
+  /peers/out/{id}/lastrun/stdout:
+    get:
+      summary: "Information about last run"
+      description: |
+        Return the stdout output of the last run.
+      parameters:
+        - $ref: "#/components/parameters/peerId"
+      responses:
+        "200":
+          description: OK
+          content:
+            "text/plain":
+              schema:
+                type: string
+  /peers/out/{id}/lastrun/stderr:
+    get:
+      summary: "Information about last run"
+      description: |
+        Returns the stderr output of the last run.
+      parameters:
+        - $ref: "#/components/parameters/peerId"
+      responses:
+        "200":
+          description: OK
+          content:
+            "text/plain":
+              schema:
+                type: string
+
+  /device:
+    get:
+      summary: "Get information about this pickup instance"
+      description: |
+        Return **all** information about this pickup
+        instance. Especially, private keys and other sensible data is
+        returned.
+      responses:
+        "200":
+          description: Ok
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/DeviceData"
+  /device-public:
+    get:
+      summary: "Get public information about this pickup instance"
+      description: |
+        Return public only information about this pickup instance.
+      responses:
+        "200":
+          description: Ok
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/DevicePublic"
+
+components:
+  parameters:
+    peerId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+  schemas:
+    DevicePublic:
+      description: |
+        Public information about this pickup instance.
+      required:
+        - id
+        - sshPublicKey
+      properties:
+        id:
+          description: |
+            The pickup id.
+          type: string
+        sshPublicKey:
+          description: |
+            The public SSH key.
+          type: string
+          format: ssh-publickey
+    DeviceData:
+      description: |
+        All data about this pickup instance.
+      required:
+        - id
+        - password
+        - sshPublicKey
+        - sshPrivateKey
+        - sshPersonal
+        - sshRemote
+        - insertion
+      properties:
+        id:
+          description: |
+            The pickup id.
+          type: string
+        password:
+          description: |
+            The password protecting your backup data. *This is stored
+            as plain text*, because running incremental backups
+            requires access to existing data.
+          type: string
+          format: password
+        sshPublicKey:
+          description: |
+            The public SSH key.
+          type: string
+          format: ssh-publickey
+        sshPrivateKey:
+          description: |
+            The **private** SSH key. This is required if you want to
+            connect via SFTP to your backup directory.
+          type: string
+          format: ssh-privatekey
+        sshPersonal:
+          $ref: "#/components/schemas/SshPersonal"
+        sshRemote:
+          $ref: "#/components/schemas/SshRemote"
+        insertion:
+          description: |
+            The time this device was created.
+          type: string
+    SshPersonal:
+      description: |
+        The personal SSH endpoint.
+      required:
+        - host
+        - port
+        - user
+        - enabled
+      properties:
+        host:
+          description: |
+            The host the SSH daemon binds to.
+          type: string
+        port:
+          description: |
+            The port the SSH daemon binds to.
+          type: integer
+          format: int32
+        user:
+          description: |
+            The username permitted to login.
+          type: string
+        enabled:
+          description: |
+            Whether the personal SSH endpoint is enabled.
+          type: boolean
+    SshRemote:
+      description: |
+        The remote SSH endpoint.
+      required:
+        - host
+        - port
+      properties:
+        host:
+          description: |
+            The host the SSH daemon binds to.
+          type: string
+        port:
+          description: |
+            The port the SSH daemon binds to.
+          type: integer
+          format: int32
+    SetupData:
+      description: |
+        Information to provide for setting up pickup.
+      required:
+        - password
+      properties:
+        password:
+          description: |
+            A password to protect the management gui and the local SSH
+            service.
+          type: string
+    SetupState:
+      description: |
+        Information about the current setup.
+      required:
+        - exists
+        - device
+      properties:
+        exists:
+          description: |
+            Whether the setup already exists.
+          type: boolean
+        device:
+          description: |
+            The id of this pickup "device".
+          type: string
+          example: "A14R-MAR1-XDYE-AEN4-3CTA"
+    InPeer:
+      description: |
+        Data about an incoming peer.
+      required:
+        - id
+        - description
+        - pubkey
+        - enabled
+        - connections
+        - lastConnection
+        - sizeBytes
+        - sizeString
+      properties:
+        id:
+          description: |
+            The username or pickup device id.
+          type: string
+        description:
+          description: |
+            Some descriptive text to this peer.
+          type: string
+        pubkey:
+          description: |
+            The public key.
+          type: string
+          format: ssh-publickey
+        enabled:
+          description: |
+            Whether this peer is enabled. Disabled peers cannot login.
+          type: boolean
+        connections:
+          description: |
+            How many times this peer connected.
+          type: integer
+          format: int32
+        lastConnection:
+          description: |
+            The last time this peer connected.
+          type: string
+        sizeBytes:
+          description: |
+            The size in bytes this peer uses.
+          type: integer
+          format: int64
+        sizeString:
+          description: |
+            The size in a human readable string this peer uses.
+          type: string
+    OutPeer:
+      description: |
+        Data about an outgoing peer.
+      required:
+        - id
+        - remoteUri
+        - description
+        - enabled
+        - connections
+        - lastConnection
+      properties:
+        id:
+          description: |
+            Some identifier for this peer.
+          type: string
+        remoteUri:
+          description: |
+            The uri to this peer. This contains a host and a port, separated by a colon.
+          type: string
+          format: uri
+          example: somehost:22405
+        description:
+          description: |
+            Some descriptive text to this peer.
+          type: string
+        schedule:
+          $ref: "#/components/schemas/ScheduleData"
+        enabled:
+          description: |
+            Whether this peer is enabled. Disabled peers cannot login.
+          type: boolean
+        runningTime:
+          description: |
+            If a backup to this peer is currently in progress, this is
+            the current running time in milliseconds. If no process is
+            currently running, this returns `null`.
+          type: integer
+          format: int64
+        connections:
+          description: |
+            How many times this peer connected.
+          type: integer
+          format: int32
+        lastConnection:
+          description: |
+            The last time this peer connected.
+          type: string
+    OutputData:
+      description: |
+        Information about last backup process.
+      required:
+        - runAt
+        - runTime
+        - returnCode
+        - success
+        - runCount
+        - runSuccess
+      properties:
+        runAt:
+          description: |
+            The timestamp when the backup run started.
+          type: string
+        runTime:
+          description: |
+            How long the backup took.
+          type: integer
+          format: int64
+        returnCode:
+          description: |
+            The return code of the backup command.
+          type: integer
+          format: int32
+        success:
+          description: |
+            Whether the command returned successfully.
+          type: boolean
+        runCount:
+          description: |
+            How may times this backup was run.
+          type: integer
+          format: int32
+        runSuccess:
+          description: |
+            How many times this run was successful.
+          type: integer
+          format: int32
+    ScheduleData:
+      description: |
+        Information about a scheduled backup run.
+      required:
+        - schedule
+        - nextRunMillis
+        - nextRun
+      properties:
+        schedule:
+          description: |
+            The schedule expression.
+          type: string
+          format: schedule
+          example: "2019-*-* 8,12:00"
+        nextRun:
+          description: |
+            A human readable timestamp when next execution will occur.
+          type: string
+        nextRunMillis:
+          description: |
+            The duration in milliseconds until next run.
+          type: integer
+          format: int64
