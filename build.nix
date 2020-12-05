@@ -1,16 +1,21 @@
-with import <nixpkgs> { };
-
-# A FHS env to create debian packages on NixOS
-#
-# Run `nix-build build.nix` and then start sbt via `./result/bin/pickup-build -c sbt`
-#
+let
+    nixpkgsUnstable = builtins.fetchTarball {
+    url = "https://github.com/NixOS/nixpkgs-channels/archive/nixos-unstable.tar.gz";
+  };
+  pkgsUnstable = import nixpkgsUnstable { };
+  initScript = pkgsUnstable.writeScript "docspell-build-init" ''
+     export LD_LIBRARY_PATH=
+     ${pkgsUnstable.bash}/bin/bash -c sbt
+  '';
+in with pkgsUnstable;
 
 buildFHSUserEnv {
-  name = "pickup-build";
+  name = "pickup-sbt";
   targetPkgs = pkgs: with pkgs; [
-    netcat jdk8 wget which zsh dpkg sbt git elmPackages.elm ncurses fakeroot mc jekyll
+    netcat jdk8 wget which zsh dpkg sbt git elmPackages.elm ncurses fakeroot mc
+
     # haskells http client needs this (to download elm packages)
     iana-etc
   ];
-  runScript = "$SHELL";
+  runScript = initScript;
 }
