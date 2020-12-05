@@ -75,7 +75,7 @@ final class ExecBackup[F[_]: Sync: ContextShift](cfg: Config
       "--gpg-options", "--trust-model=always",
       "--tempdir", temp.toString,
       "--name", "pickup-backup",
-      "--ssh-options", s"-oIdentityFile='${sshId}' -oStrictHostKeyChecking=no"
+      "--ssh-options", s"-oIdentityFile=${sshId} -oStrictHostKeyChecking=no"
     )
   }
 
