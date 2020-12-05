@@ -2,7 +2,7 @@ import sbt._
 
 object Dependencies {
 
-  val ScalaVersion = "2.12.8"
+  val ScalaVersion = "2.12.12"
 
   val BetterMonadicForVersion = "0.3.0"
   val BouncycastleVersion = "1.61"

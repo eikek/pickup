@@ -66,7 +66,7 @@ object Uri {
 
     def proto[_:P] = P(CharIn("a-z").rep(min = 1, max = 5)).!
 
-    def user[_: P] = P(CharIn("a-b") ~ CharPred(c => c != '@').rep).!
+    def user[_: P] = P(CharIn("a-zA-Z") ~ CharPred(c => c != '@').rep).!
 
     def host[_: P] = P(CharPred(c => c != ':').rep).!
 
